@@ -1,6 +1,6 @@
 # Nonlinear 3D Face Morphable Model
 
-![Teaser](./nonlinear-3dmm.jpg)
+![Teaser](./images/nonlinear-3dmm.jpg)
 
 ## Library requirements
 
