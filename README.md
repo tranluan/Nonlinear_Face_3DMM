@@ -1,8 +1,6 @@
-# Nonlinear_Face_3DMM
+# Nonlinear 3D Face Morphable Model
 
-![Teaser](http://cvlab.cse.msu.edu/images/nonlinear-3dmm.png)
-
-[//]: # "Comment"
+![Teaser](./nonlinear-3dmm.jpg)
 
 ## Library requirements
 
