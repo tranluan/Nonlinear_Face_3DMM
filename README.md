@@ -7,6 +7,18 @@
 * Tensorflow
 
 
+## Compile the rendering layer - CUDA code
+```bash
+$ # Compile
+$ cd TF_newop/
+$ ./compile_op_v2_sz224.sh
+$ # Run an example
+$ python rendering_example.py
+```
+Currently the code is working but not optimal (i.e see line 139 of TF_newop/cuda_op_kernel_v2_sz224.cu.cc)
+also the image size is hard-coded. Any contribution is welcome!
+
+
 ## Citation
 
 If you find this work useful, please cite our papers with the following bibtex:
