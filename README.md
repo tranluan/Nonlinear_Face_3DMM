@@ -1,4 +1,6 @@
 # Nonlinear 3D Face Morphable Model
+### [[Project page]](http://cvlab.cse.msu.edu/project-nonlinear-3dmm.html)   [[CVPR'18 Paper]](http://cvlab.cse.msu.edu/pdfs/Tran_Liu_CVPR2018.pdf)
+
 
 ![Teaser](./images/nonlinear-3dmm.jpg)
 
