@@ -38,6 +38,7 @@ class ZbufferTriOp : public OpKernel {
   explicit ZbufferTriOp(OpKernelConstruction* context) : OpKernel(context) {}
 
   void Compute(OpKernelContext* context) override {
+    int img_sz = 224;
     // Grab the input tensors
     const Tensor& s2d_tensor = context->input(0);
     auto s2d = s2d_tensor.flat<float>();
@@ -50,12 +51,12 @@ class ZbufferTriOp : public OpKernel {
 
     // Create an output tensor
     Tensor* output_tensor = nullptr;
-    OP_REQUIRES_OK(context, context->allocate_output(0, TensorShape({224, 224}), &output_tensor));
+    OP_REQUIRES_OK(context, context->allocate_output(0, TensorShape({img_sz, img_sz}), &output_tensor));
     auto output = output_tensor->template flat<int32>();
 
     
     Tensor* zbuffer_tensor = nullptr;
-    OP_REQUIRES_OK(context, context->allocate_output(1, TensorShape({224, 224}), &zbuffer_tensor));
+    OP_REQUIRES_OK(context, context->allocate_output(1, TensorShape({img_sz, img_sz}), &zbuffer_tensor));
     auto zbuffer = zbuffer_tensor->template flat<float>();
 
     // Set all but the first element of the output tensor to 0.

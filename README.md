@@ -38,4 +38,4 @@ If you find this work useful, please cite our papers with the following bibtex:
 
 ## Contacts
 
-If you have any questions, drop an email to _tranluan@msu.edu_ or leave a message below with GitHub (log-in is needed).
+If you have any questions, feel free to drop an email to _tranluan@msu.edu_.

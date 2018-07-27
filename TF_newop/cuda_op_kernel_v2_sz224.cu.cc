@@ -33,7 +33,7 @@ limitations under the License.
 
 #define max3(a,b,c) (max(max(a,b), c))
 
-__global__ void ZbufferTriKernel(const float* s2d, const int* tri, const bool* vis, const int tri_num, const int vertex_num, int* out, float* zbuffer) {
+__global__ void ZbufferTriKernel(const float* s2d, const int* tri, const bool* vis, const int tri_num, const int vertex_num, int* out, float* zbuffer, int img_sz) {
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < tri_num - 1; i += blockDim.x * gridDim.x) {
   	if (vis[i]) {
     
@@ -59,7 +59,7 @@ __global__ void ZbufferTriKernel(const float* s2d, const int* tri, const bool* v
 		float r = (s2d[2*vertex_num+vt1] + s2d[2*vertex_num+vt2] + s2d[2*vertex_num+vt3])/3;
 
 	    
-	    if (umax < 224 && vmax < 224 && umin >= 0 && vmin >= 0 ){
+	    if (umax < img_sz && vmax < img_sz && umin >= 0 && vmin >= 0 ){
 	    	for (int u = umin; u <= umax; u++){
 	    		for (int v = vmin; v <= vmax; v++){
 	    			
@@ -100,9 +100,9 @@ __global__ void ZbufferTriKernel(const float* s2d, const int* tri, const bool* v
 				    }
 
 				    if (flag){
-				    	if (zbuffer[u * 224 + v] < r ){ // and triCpoint(np.asarray([u, v]), pt1, pt2, pt3)):
-					    	zbuffer[u * 224 + v] = r;
-		                    out[u * 224 + v ] = i;
+				    	if (zbuffer[u * img_sz + v] < r ){ // and triCpoint(np.asarray([u, v]), pt1, pt2, pt3)):
+					    	zbuffer[u * img_sz + v] = r;
+		                    out[u * img_sz + v ] = i;
 		                }
 		                
 				    }
@@ -114,15 +114,15 @@ __global__ void ZbufferTriKernel(const float* s2d, const int* tri, const bool* v
 
 }
 
-__global__ void Initialize(const int tri_num, int* out, float* zbuffer) {
-  for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < 224*224; i += blockDim.x * gridDim.x) {
+__global__ void Initialize(const int tri_num, int* out, float* zbuffer, int img_sz) {
+  for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < img_sz*img_sz; i += blockDim.x * gridDim.x) {
     zbuffer[i] = -INFINITY;
     out[i] = tri_num;
   }
 }
 
-__global__ void ConvertToMask(float* zbuffer) {
-  for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < 224*224; i += blockDim.x * gridDim.x) {
+__global__ void ConvertToMask(float* zbuffer, int img_sz) {
+  for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < img_sz*img_sz; i += blockDim.x * gridDim.x) {
     if (zbuffer[i] == -INFINITY){
     	zbuffer[i] = 0;
     }
@@ -134,10 +134,11 @@ __global__ void ConvertToMask(float* zbuffer) {
 
 
 void ZbufferTriLauncher(const float* s2d, const int* tri, const bool* vis, const int tri_num, const int vertex_num, int* out, float* zbuffer) {
-	Initialize<<<32, 256>>>(tri_num-1, out, zbuffer);
-	ZbufferTriKernel<<<1, 1>>>(s2d, tri, vis, tri_num, vertex_num, out, zbuffer);
+	int img_sz = 224;
+	Initialize<<<32, 256>>>(tri_num-1, out, zbuffer, img_sz);
+	ZbufferTriKernel<<<1, 1>>>(s2d, tri, vis, tri_num, vertex_num, out, zbuffer, img_sz);
 	// TODO: Make sure the correctness when process in paralell i.e ZbufferTriKernel<<<32, 256>>>(s2d, tri, vis, tri_num, vertex_num, out, zbuffer); 
-	ConvertToMask<<<32, 256>>>(zbuffer);
+	ConvertToMask<<<32, 256>>>(zbuffer, img_sz);
 }
 
 #endif
