@@ -56,7 +56,7 @@ __global__ void ZbufferTriKernel(const float* s2d, const int* tri, const bool* v
 	    int vmin =  int(ceil (double( min3(point1_v, point2_v, point3_v) )));
 	    int vmax =  int(floor(double( max3(point1_v, point2_v, point3_v) )));
 
-		float r = (s2d[2*vertex_num+vt1] + s2d[2*vertex_num+vt2] + s2d[2*vertex_num+vt3])/3;
+            float r = (s2d[2*vertex_num+vt1] + s2d[2*vertex_num+vt2] + s2d[2*vertex_num+vt3])/3;
 
 	    
 	    if (umax < img_sz && vmax < img_sz && umin >= 0 && vmin >= 0 ){
@@ -66,7 +66,7 @@ __global__ void ZbufferTriKernel(const float* s2d, const int* tri, const bool* v
 				    bool flag;
 				    
 				    float v0_u = point3_u - point1_u; //C - A
-					float v0_v = point3_v - point1_v; //C - A
+                                    float v0_v = point3_v - point1_v; //C - A
 
 				    float v1_u = point2_u - point1_u; //B - A
 				    float v1_v = point2_v - point1_v; //B - A
@@ -102,8 +102,8 @@ __global__ void ZbufferTriKernel(const float* s2d, const int* tri, const bool* v
 				    if (flag){
 				    	if (zbuffer[u * img_sz + v] < r ){ // and triCpoint(np.asarray([u, v]), pt1, pt2, pt3)):
 					    	zbuffer[u * img_sz + v] = r;
-		                    out[u * img_sz + v ] = i;
-		                }
+                                                out[u * img_sz + v ] = i;
+                                        }
 		                
 				    }
 	    		}
