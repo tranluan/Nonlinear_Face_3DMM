@@ -256,26 +256,260 @@ class DCGAN(object):
         ''' 
         Creating a encoder network
 
-        Output: shape_fx, tex_fc, m
+        Output: shape_fx, tex_fc, m, il
+
         '''
 
-        return shape_fx, k52_tex, k6_m, k6_il #k5, k6_m, k6_shape, k6_exp, k6_tex
+        
+        if not is_reuse:
+            self.g_bn0_0 = batch_norm(name='g_k_bn0_0')
+            self.g_bn0_1 = batch_norm(name='g_k_bn0_1')
+            self.g_bn0_2 = batch_norm(name='g_k_bn0_2')
+            self.g_bn0_3 = batch_norm(name='g_k_bn0_3')
+            self.g_bn1_0 = batch_norm(name='g_k_bn1_0')
+            self.g_bn1_1 = batch_norm(name='g_k_bn1_1')
+            self.g_bn1_2 = batch_norm(name='g_k_bn1_2')
+            self.g_bn1_3 = batch_norm(name='g_k_bn1_3')
+            self.g_bn2_0 = batch_norm(name='g_k_bn2_0')
+            self.g_bn2_1 = batch_norm(name='g_k_bn2_1')
+            self.g_bn2_2 = batch_norm(name='g_k_bn2_2')
+            self.g_bn2_3 = batch_norm(name='g_k_bn2_3')
+            self.g_bn3_0 = batch_norm(name='g_k_bn3_0')
+            self.g_bn3_1 = batch_norm(name='g_k_bn3_1')
+            self.g_bn3_2 = batch_norm(name='g_k_bn3_2')
+            self.g_bn3_3 = batch_norm(name='g_k_bn3_3')
+            self.g_bn4_0 = batch_norm(name='g_k_bn4_0')
+            self.g_bn4_1 = batch_norm(name='g_k_bn4_1')
+            self.g_bn4_2 = batch_norm(name='g_k_bn4_2')
+            self.g_bn4_c = batch_norm(name='g_h_bn4_c')
+            self.g_bn5   = batch_norm(name='g_k_bn5')
+            self.g_bn5_m     = batch_norm(name='g_k_bn5_m')
+            self.g_bn5_il    = batch_norm(name='g_k_bn5_il')
+            self.g_bn5_shape = batch_norm(name='g_k_bn5_shape')
+            self.g_bn5_shape_linear = batch_norm(name='g_k_bn5_shape_linear')
+            self.g_bn5_tex   = batch_norm(name='g_k_bn5_tex')
 
-    def generator_decoder_shape(self, shape_fx, is_reuse=False, is_training=True, is_remesh=False):
+       
+
+        k0_1 = elu(self.g_bn0_1(conv2d(image, self.gf_dim*1, k_h=7, k_w=7, d_h=2, d_w =2, use_bias = False, name='g_k01_conv', reuse = is_reuse), train=is_training, reuse = is_reuse))
+        k0_2 = elu(self.g_bn0_2(conv2d(k0_1, self.gf_dim*2, d_h=1, d_w =1, use_bias = False, name='g_k02_conv', reuse = is_reuse), train=is_training, reuse = is_reuse))
+
+        k1_0 = elu(self.g_bn1_0(conv2d(k0_2, self.gf_dim*2, d_h=2, d_w =2, use_bias = False, name='g_k10_conv', reuse = is_reuse), train=is_training, reuse = is_reuse))
+        k1_1 = elu(self.g_bn1_1(conv2d(k1_0, self.gf_dim*2, d_h=1, d_w =1, use_bias = False, name='g_k11_conv', reuse = is_reuse), train=is_training, reuse = is_reuse))
+        k1_2 = elu(self.g_bn1_2(conv2d(k1_1, self.gf_dim*4, d_h=1, d_w =1, use_bias = False, name='g_k12_conv', reuse = is_reuse), train=is_training, reuse = is_reuse))
+        #k1_3 =               maxpool2d(k1_2, k=2, padding='VALID')
+        k2_0 = elu(self.g_bn2_0(conv2d(k1_2, self.gf_dim*4, d_h=2, d_w =2, use_bias = False, name='g_k20_conv', reuse = is_reuse), train=is_training, reuse = is_reuse))
+        k2_1 = elu(self.g_bn2_1(conv2d(k2_0, self.gf_dim*3, d_h=1, d_w =1, use_bias = False, name='g_k21_conv', reuse = is_reuse), train=is_training, reuse = is_reuse))
+        k2_2 = elu(self.g_bn2_2(conv2d(k2_1, self.gf_dim*6, d_h=1, d_w =1, use_bias = False, name='g_k22_conv', reuse = is_reuse), train=is_training, reuse = is_reuse))
+        #k2_3 =               maxpool2d(k2_2, k=2, padding='VALID')
+        k3_0 = elu(self.g_bn3_0(conv2d(k2_2, self.gf_dim*6, d_h=2, d_w =2, use_bias = False, name='g_k30_conv', reuse = is_reuse), train=is_training, reuse = is_reuse))
+        k3_1 = elu(self.g_bn3_1(conv2d(k3_0, self.gf_dim*4, d_h=1, d_w =1, use_bias = False, name='g_k31_conv', reuse = is_reuse), train=is_training, reuse = is_reuse))
+        k3_2 = elu(self.g_bn3_2(conv2d(k3_1, self.gf_dim*8, d_h=1, d_w =1, use_bias = False, name='g_k32_conv', reuse = is_reuse), train=is_training, reuse = is_reuse))
+        #k3_3 =               maxpool2d(k3_2, k=2, padding='VALID')
+        k4_0 = elu(self.g_bn4_0(conv2d(k3_2, self.gf_dim*8, d_h=2, d_w =2, use_bias = False, name='g_k40_conv', reuse = is_reuse), train=is_training, reuse = is_reuse))
+        k4_1 = elu(self.g_bn4_1(conv2d(k4_0, self.gf_dim*5, d_h=1, d_w =1, use_bias = False, name='g_k41_conv', reuse = is_reuse), train=is_training, reuse = is_reuse))
+        
+
+        # M
+        k51_m = self.g_bn5_m(    conv2d(k4_1, int(self.gfc_dim/5),  d_h=1, d_w =1, name='g_k5_m_conv', reuse = is_reuse), train=is_training, reuse = is_reuse)
+        k51_shape_ = get_shape(k51_m)
+        k52_m = tf.nn.avg_pool(k51_m, ksize = [1, k51_shape_[1], k51_shape_[2], 1], strides = [1,1,1,1],padding = 'VALID')
+        k52_m = tf.reshape(k52_m, [-1, int(self.gfc_dim/5)])
+        k6_m = linear(k52_m, self.mDim, 'g_k6_m_lin', reuse = is_reuse)
+        
+        # Il
+        k51_il = self.g_bn5_il(    conv2d(k4_1, int(self.gfc_dim/5),  d_h=1, d_w =1, name='g_k5_il_conv', reuse = is_reuse), train=is_training, reuse = is_reuse)
+        k52_il = tf.nn.avg_pool(k51_il, ksize = [1, k51_shape_[1], k51_shape_[2], 1], strides = [1,1,1,1],padding = 'VALID')
+        k52_il = tf.reshape(k52_il, [-1, int(self.gfc_dim/5)])
+        k6_il = linear(k52_il, self.ilDim, 'g_k6_il_lin', reuse = is_reuse)
+
+        # Shape
+        k51_shape = self.g_bn5_shape(conv2d(k4_1, self.gfc_dim/2,  d_h=1, d_w =1, name='g_k5_shape_conv', reuse = is_reuse), train=is_training, reuse = is_reuse)
+        k52_shape = tf.nn.avg_pool(k51_shape, ksize = [1, k51_shape_[1], k51_shape_[2], 1], strides = [1,1,1,1],padding = 'VALID')
+        k52_shape = tf.reshape(k52_shape, [-1, int(self.gfc_dim/2)])
+
+        # Albedo
+        k51_tex   = self.g_bn5_tex(  conv2d(k4_1, self.gfc_dim/2,  d_h=1, d_w =1, name='g_k5_tex_conv', reuse = is_reuse), train=is_training, reuse = is_reuse)
+        k52_tex = tf.nn.avg_pool(k51_tex, ksize = [1, k51_shape_[1], k51_shape_[2], 1], strides = [1,1,1,1],padding = 'VALID')
+        k52_tex = tf.reshape(k52_tex, [-1, int(self.gfc_dim/2)])
+        
+        return k52_shape, k52_tex, k6_m, k6_il
+
+    def generator_decoder_shape(self, k52_shape, is_reuse=False, is_training=True):
+        if False:  ## This is for shape decoder as fully connected network (NOT FULLY COMPATIBLE WITH THE REST OF THE CODE)
+            return self.generator_decoder_shape_1d(k52_shape, is_reuse, is_training)
+        else: 
+
+            n_size = get_shape(k52_shape)
+            n_size = n_size[0]
+
+            vt2pixel_u, vt2pixel_v = load_3DMM_vt2pixel()
+
+
+            #Vt2pix
+            vt2pixel_u_const = tf.constant(vt2pixel_u[:-1], tf.float32)
+            vt2pixel_v_const = tf.constant(vt2pixel_v[:-1], tf.float32)
+
+            if self.is_partbase_albedo:
+                shape_2d = self.generator_decoder_shape_2d_partbase(k52_shape, is_reuse, is_training)
+            else:
+                shape_2d = self.generator_decoder_shape_2d_v1(k52_shape, is_reuse, is_training) 
+
+            vt2pixel_v_const_ = tf.tile(tf.reshape(vt2pixel_v_const, shape =[1,1,-1]), [n_size, 1,1])
+            vt2pixel_u_const_ = tf.tile(tf.reshape(vt2pixel_u_const, shape =[1,1,-1]), [n_size, 1,1])
+
+            shape_1d = tf.reshape(bilinear_sampler( shape_2d, vt2pixel_v_const_, vt2pixel_u_const_), shape=[n_size, -1])
+
+            return shape_1d, shape_2d
+
+
+    def generator_decoder_shape_1d(self, shape_fx, is_reuse=False, is_training=True):
+        s6 = elu(self.g1_bn6(linear(k52_shape, 1000, scope= 'g_s6_lin', reuse = is_reuse), train=is_training, reuse = is_reuse), name="g_s6_prelu")
+        s7 = linear(s6, self.vertexNum*3, scope= 'g_s7_lin', reuse = is_reuse)
+
+        return s7
+
+
+    def generator_decoder_shape_2d(self, shape_fx, is_reuse=False, is_training=True):
         '''
         Create shape decoder network
         Output: 3d_shape [N, (self.vertexNum*3)]
         '''
 
-        return shape
+        if not is_reuse:
+            self.g2_bn0_0 = batch_norm(name='g_s_bn0_0')
+            self.g2_bn0_1 = batch_norm(name='g_s_bn0_1')
+            self.g2_bn0_2 = batch_norm(name='g_s_bn0_2')        
+            self.g2_bn1_0 = batch_norm(name='g_s_bn1_0')
+            self.g2_bn1_1 = batch_norm(name='g_s_bn1_1')
+            self.g2_bn1_2 = batch_norm(name='g_s_bn1_2')
+            self.g2_bn2_0 = batch_norm(name='g_s_bn2_0')
+            self.g2_bn2_1 = batch_norm(name='g_s_bn2_1')
+            self.g2_bn2_2 = batch_norm(name='g_s_bn2_2')
+            self.g2_bn3_0 = batch_norm(name='g_s_bn3_0')
+            self.g2_bn3_1 = batch_norm(name='g_s_bn3_1')
+            self.g2_bn3_2 = batch_norm(name='g_s_bn3_2')
+            self.g2_bn4_0 = batch_norm(name='g_s_bn4_0')
+            self.g2_bn4   = batch_norm(name='g_s_bn4')
+            self.g2_bn5   = batch_norm(name='g_s_bn5')
+        
+        s_h = int(self.texture_size[0])
+        s_w = int(self.texture_size[1])
+        s32_h= int(s_h/32)
+        s32_w= int(s_w/32)
+                    
+        # project `z` and reshape
+        h5 = linear(k52_tex, self.gfc_dim*s32_h*s32_w, scope= 'g_s5_lin', reuse = is_reuse)
+        h5 = tf.reshape(h5, [-1, s32_h, s32_w, self.gfc_dim])
+        h5 = elu(self.g2_bn5(h5, train=is_training, reuse = is_reuse))
+        
+        h4_1 = deconv2d(h5, self.gf_dim*5, name='g_s4', reuse = is_reuse)
+        h4_1 = elu(self.g2_bn4(h4_1, train=is_training, reuse = is_reuse))
+        h4_0 = deconv2d(h4_1, self.gf_dim*8, strides=[1,1], name='g_s40', reuse = is_reuse)
+        h4_0 = elu(self.g2_bn4_0(h4_0, train=is_training, reuse = is_reuse))
 
-    def generator_decoder_texture(self, tex_fx, is_reuse=False, is_training=True, is_remesh=False):
+        h3_2 = deconv2d(h4_0, self.gf_dim*8, strides=[2,2], name='g_s32', reuse = is_reuse)
+        h3_2 = elu(self.g2_bn3_2(h3_2, train=is_training, reuse = is_reuse))
+        h3_1 = deconv2d(h3_2, self.gf_dim*4, strides=[1,1], name='g_s31', reuse = is_reuse)
+        h3_1 = elu(self.g2_bn3_1(h3_1, train=is_training, reuse = is_reuse))
+        h3_0 = deconv2d(h3_1, self.gf_dim*6, strides=[1,1], name='g_s30', reuse = is_reuse)
+        h3_0 = elu(self.g2_bn3_0(h3_0, train=is_training, reuse = is_reuse))
+
+        h2_2 = deconv2d(h3_0, self.gf_dim*6, strides=[2,2], name='g_s22', reuse = is_reuse)
+        h2_2 = elu(self.g2_bn2_2(h2_2, train=is_training, reuse = is_reuse))
+        h2_1 = deconv2d(h2_2, self.gf_dim*3, strides=[1,1], name='g_s21', reuse = is_reuse)
+        h2_1 = elu(self.g2_bn2_1(h2_1, train=is_training, reuse = is_reuse))
+        h2_0 = deconv2d(h2_1, self.gf_dim*4, strides=[1,1], name='g_s20', reuse = is_reuse)
+        h2_0 = elu(self.g2_bn2_0(h2_0, train=is_training, reuse = is_reuse))
+
+        h1_2 = deconv2d(h2_0, self.gf_dim*4, strides=[2,2], name='g_s12', reuse = is_reuse)
+        h1_2 = elu(self.g2_bn1_2(h1_2, train=is_training, reuse = is_reuse))
+        h1_1 = deconv2d(h1_2, self.gf_dim*2, strides=[1,1], name='g_s11', reuse = is_reuse)
+        h1_1 = elu(self.g2_bn1_1(h1_1, train=is_training, reuse = is_reuse))
+        h1_0 = deconv2d(h1_1,self.gf_dim*2, strides=[1,1], name='g_s10', reuse = is_reuse)
+        h1_0 = elu(self.g2_bn1_0(h1_0, train=is_training, reuse = is_reuse))
+
+        h0_2 = deconv2d(h1_0, self.gf_dim*2, strides=[2,2], name='g_s02', reuse = is_reuse)
+        h0_2 = elu(self.g2_bn0_2(h0_2, train=is_training, reuse = is_reuse))
+        h0_1 = deconv2d(h0_2, self.gf_dim, strides=[1,1], name='g_s01', reuse = is_reuse)
+        h0_1 = elu(self.g2_bn0_1(h0_1, train=is_training, reuse = is_reuse))
+           
+        h0 = 2*tf.nn.tanh(deconv2d(h0_1, self.c_dim, strides=[1,1], name='g_s0', reuse = is_reuse))
+            
+        return h0
+
+
+
+    def generator_decoder_albedo(self, tex_fx, is_reuse=False, is_training=True):
         '''
         Create texture decoder network
         Output: uv_texture [N, self.texture_sz[0], self.texture_sz[1], self.c_dim]
         '''
 
-        return texture
+        if not is_reuse:
+            self.g1_bn0_0 = batch_norm(name='g_h_bn0_0')
+            self.g1_bn0_1 = batch_norm(name='g_h_bn0_1')
+            self.g1_bn0_2 = batch_norm(name='g_h_bn0_2')        
+            self.g1_bn1_0 = batch_norm(name='g_h_bn1_0')
+            self.g1_bn1_1 = batch_norm(name='g_h_bn1_1')
+            self.g1_bn1_2 = batch_norm(name='g_h_bn1_2')
+            self.g1_bn2_0 = batch_norm(name='g_h_bn2_0')
+            self.g1_bn2_1 = batch_norm(name='g_h_bn2_1')
+            self.g1_bn2_2 = batch_norm(name='g_h_bn2_2')
+            self.g1_bn3_0 = batch_norm(name='g_h_bn3_0')
+            self.g1_bn3_1 = batch_norm(name='g_h_bn3_1')
+            self.g1_bn3_2 = batch_norm(name='g_h_bn3_2')
+            self.g1_bn4_0 = batch_norm(name='g_h_bn4_0')
+            self.g1_bn4   = batch_norm(name='g_h_bn4')
+            self.g1_bn5   = batch_norm(name='g_h_bn5')
+            #self.g1_bn6   = batch_norm(name='g_s_bn6')
+        
+        s_h = int(self.texture_size[0])
+        s_w = int(self.texture_size[1])
+        s32_h= int(s_h/32)
+        s32_w= int(s_w/32)
+
+        df = int(self.gf_dim)
+                    
+        # project `z` and reshape
+        h5 = linear(k52_tex, df*10*s32_h*s32_w, scope= 'g_h5_lin', reuse = is_reuse)
+        h5 = tf.reshape(h5, [-1, s32_h, s32_w, df*10])
+        h5 = elu(self.g1_bn5(h5, train=is_training, reuse = is_reuse))
+        
+        h4_1 = deconv2d(h5, df*5, name='g_h4', reuse = is_reuse)
+        h4_1 = elu(self.g1_bn4(h4_1, train=is_training, reuse = is_reuse))
+        h4_0 = deconv2d(h4_1, df*8, strides=[1,1], name='g_h40', reuse = is_reuse)
+        h4_0 = elu(self.g1_bn4_0(h4_0, train=is_training, reuse = is_reuse))
+
+        h3_2 = deconv2d(h4_0, df*8, strides=[2,2], name='g_h32', reuse = is_reuse)
+        h3_2 = elu(self.g1_bn3_2(h3_2, train=is_training, reuse = is_reuse))
+        h3_1 = deconv2d(h3_2, df*4, strides=[1,1], name='g_h31', reuse = is_reuse)
+        h3_1 = elu(self.g1_bn3_1(h3_1, train=is_training, reuse = is_reuse))
+        h3_0 = deconv2d(h3_1, df*6, strides=[1,1], name='g_h30', reuse = is_reuse)
+        h3_0 = elu(self.g1_bn3_0(h3_0, train=is_training, reuse = is_reuse))
+
+        h2_2 = deconv2d(h3_0, df*6, strides=[2,2], name='g_h22', reuse = is_reuse)
+        h2_2 = elu(self.g1_bn2_2(h2_2, train=is_training, reuse = is_reuse))
+        h2_1 = deconv2d(h2_2, df*3, strides=[1,1], name='g_h21', reuse = is_reuse)
+        h2_1 = elu(self.g1_bn2_1(h2_1, train=is_training, reuse = is_reuse))
+        h2_0 = deconv2d(h2_1, df*4, strides=[1,1], name='g_h20', reuse = is_reuse)
+        h2_0 = elu(self.g1_bn2_0(h2_0, train=is_training, reuse = is_reuse))
+
+        h1_2 = deconv2d(h2_0, df*4, strides=[2,2], name='g_h12', reuse = is_reuse)
+        h1_2 = elu(self.g1_bn1_2(h1_2, train=is_training, reuse = is_reuse))
+        h1_1 = deconv2d(h1_2, df*2, strides=[1,1], name='g_h11', reuse = is_reuse)
+        h1_1 = elu(self.g1_bn1_1(h1_1, train=is_training, reuse = is_reuse))
+        h1_0 = deconv2d(h1_1,df*2, strides=[1,1], name='g_h10', reuse = is_reuse)
+        h1_0 = elu(self.g1_bn1_0(h1_0, train=is_training, reuse = is_reuse))
+
+        h0_2 = deconv2d(h1_0, df*2, strides=[2,2], name='g_h02', reuse = is_reuse)
+        h0_2 = elu(self.g1_bn0_2(h0_2, train=is_training, reuse = is_reuse))
+        h0_1 = deconv2d(h0_2, df, strides=[1,1], name='g_h01', reuse = is_reuse)
+        h0_1 = elu(self.g1_bn0_1(h0_1, train=is_training, reuse = is_reuse))
+           
+        h0 = tf.nn.tanh(deconv2d(h0_1, self.c_dim, strides=[1,1], name='g_h0', reuse = is_reuse))
+            
+        return h0
 
               
     @property
