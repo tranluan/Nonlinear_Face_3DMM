@@ -9,6 +9,15 @@
 * Tensorflow
 
 
+## Data
+
+Download following pre-processed training data (10GB) and unzip into ./data/300W_LP/
+[Filelist](https://drive.google.com/open?id=1R80j6Y1JiNPzsucsMOGpoogKDiYg2ynP)
+[Images](https://drive.google.com/open?id=1QkBiPAOA-a2buta--8atVVcKoAl5sj7O)
+[Textures](https://drive.google.com/open?id=1oW8wTKkkw2VDVpCv9q8UjqG3mGQCHLQd)
+[Masks](https://drive.google.com/open?id=1xTTtYYWIJlq8wYEl5BSQfjM-Vuw3jmwq)
+
+
 ## Compile the rendering layer - CUDA code
 ```bash
 $ # Compile
@@ -21,9 +30,37 @@ Currently the code is working but not optimal (i.e see line 139 of TF_newop/cuda
 also the image size is hard-coded. Any contribution is welcome!
 
 
+## Run the code
+
+Pretraining
+
+
+Finetunning
+
+
 ## Citation
 
 If you find this work useful, please cite our papers with the following bibtex:
+```latex
+@inproceedings{ tran2019towards, 
+  author = { Luan Tran and Feng Liu and Xiaoming Liu },
+  title = { Towards High-fidelity Nonlinear 3D Face Morphable Model },
+  booktitle = { In Proceeding of IEEE Computer Vision and Pattern Recognition },
+  address = { Long Beach, CA },
+  month = { June },
+  year = { 2019 },
+}
+```
+
+```latex
+@article{ tran2018on, 
+  author = { Luan Tran and Xiaoming Liu },
+  title = { On Learning 3D Face Morphable Model from In-the-wild Images },
+  journal = { arXiv preprint arXiv:1808.09560 },
+  year = { 2018 },
+}
+```
+
 
 ```latex
 @inproceedings{ tran2018nonlinear, 

@@ -152,6 +152,49 @@ class DCGAN(object):
     def setupTrainingData(self):
         # Training data - 300W
 
+        dataset = ['AFW', 'AFW_Flip', 'HELEN', 'HELEN_Flip', 'IBUG', 'IBUG_Flip', 'LFPW', 'LFPW_Flip']
+        dataset_num = len(dataset)
+
+
+        images = [0] * dataset_num
+        pid = [0] * dataset_num
+        m = [0] * dataset_num
+        pose = [0] * dataset_num
+        shape = [0] * dataset_num
+        exp = [0] * dataset_num
+        tex_para = [0] * dataset_num
+        tex = [0] * dataset_num
+        il = [0] * dataset_num
+        alb = [0] * dataset_num
+        mask = [0] * dataset_num
+
+        for i in range(dataset_num):
+            images[i], pid[i], m[i], pose[i], shape[i], exp[i], tex_para[i], _ = load_300W_LP_dataset(dataset[i])
+
+
+        self.image_filenames   = np.concatenate(images, axis=0)
+        images = None
+
+        all_m = np.concatenate(m, axis=0)
+
+        all_shape_para    = np.concatenate(shape, axis=0)
+        all_exp_para      = np.concatenate(exp, axis=0)
+        self.all_tex_para = np.concatenate(tex_para, axis=0)
+        self.pids_300W    = np.concatenate(pid, axis=0)
+        #self.all_il       = np.concatenate(il, axis=0)
+
+
+        self.all_m  = np.divide(np.subtract(all_m, self.mean_m), self.std_m)
+
+        self.mean_shape_para = np.mean(all_shape_para, axis=0)
+        self.std_shape_para  = np.std(all_shape_para, axis=0)
+        self.all_shape_para  = all_shape_para #np.divide(np.subtract(all_shape_para, self.mean_shape_para), self.std_shape_para)
+
+
+        self.mean_exp_para = np.mean(all_exp_para, axis=0)
+        self.std_exp_para  = np.std(all_exp_para, axis=0)
+        self.all_exp_para  = all_exp_para #np.divide(np.subtract(all_exp_para, self.mean_exp_para), self.std_exp_para)
+
         return
 
     
