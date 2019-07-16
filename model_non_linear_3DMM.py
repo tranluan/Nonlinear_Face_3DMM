@@ -25,6 +25,8 @@ from utils import *
 
 TRI_NUM = 105840
 VERTEX_NUM = 53215
+CONST_PIXELS_NUM = 20
+
 
 
 class DCGAN(object):
@@ -53,8 +55,18 @@ class DCGAN(object):
 
         self.shape_loss = config.shape_loss if hasattr(config, 'shape_loss') else "l2"
         self.tex_loss   = config.tex_loss if hasattr(config, 'tex_loss') else "l1"
+
+        self.is_using_landmark = config.is_using_landmark
+        self.is_using_symetry = config.is_using_symetry
+        self.is_using_recon = config.is_using_recon
+        self.is_using_frecon = config.is_using_frecon
+        self.is_batchwise_white_shading = config.is_batchwise_white_shading
+        self.is_const_albedo = config.is_const_albedo
+        self.is_const_local_albedo = config.is_const_local_albedo
+        self.is_smoothness = config.is_smoothness
         
         self.mDim = 8
+        self.ilDim = 27
                 
         self.vertexNum = VERTEX_NUM
         self.landmark_num = 68
@@ -69,39 +81,217 @@ class DCGAN(object):
             os.makedirs(self.checkpoint_dir+"/"+self.model_dir)
 
         self.setupParaStat()
-        self.setupValData()
+        #self.setupValData()
         self.build_model()
-    
+
     def build_model(self):
+        def filename2image(input_filenames, offset_height = None, offset_width = None, target_height=None, target_width=None):
+            batch_size = len(input_filenames)
+            if offset_height != None:
+                offset_height = tf.split(offset_height, batch_size)
+                offset_width = tf.split(offset_width, batch_size)
+
+            images = []          
+            for i in range(batch_size):
+                file_contents = tf.read_file(input_filenames[i])
+                image = tf.image.decode_png(file_contents, channels=3)
+                if offset_height != None:
+                    image = tf.image.crop_to_bounding_box(image, tf.reshape(offset_height[i], []), tf.reshape(offset_width[i], []), target_height, target_width)
+
+                images.append(image)
+            return tf.cast(tf.stack(images), tf.float32)
+
+        
+        self.m_300W_labels       = tf.placeholder(tf.float32, [self.batch_size, self.mDim], name='m_300W_labels')
+        self.shape_300W_labels   = tf.placeholder(tf.float32, [self.batch_size, self.vertexNum * 3], name='shape_300W_labels')
+        self.texture_300W_labels = tf.placeholder(tf.float32, [self.batch_size, self.texture_size[0], self.texture_size[1], self.c_dim], name='tex_300W_labels')
+        #self.exp_300W_labels     = tf.placeholder(tf.float32, [self.batch_size, self.expDim], name='exp_300W_labels')
+        #self.il_300W_labels      = tf.placeholder(tf.float32, [self.batch_size, self.ilDim], name='lighting_300W_labels')
+
+        self.input_offset_height  = tf.placeholder(tf.int32, [self.batch_size], name='input_offset_height')
+        self.input_offset_width   = tf.placeholder(tf.int32, [self.batch_size], name='input_offset_width')
+
+        self.input_images_fn_300W = [tf.placeholder(dtype=tf.string) for _ in range(self.batch_size)]
+        self.input_masks_fn_300W  = [tf.placeholder(dtype=tf.string) for _ in range(self.batch_size)]
+        self.texture_labels_fn_300W = [tf.placeholder(dtype=tf.string) for _ in range(self.batch_size)]
+        self.texture_masks_fn_300W  = [tf.placeholder(dtype=tf.string) for _ in range(self.batch_size)]
+
+
+        # For const alb loss
+        self.albedo_indexes_x1 = tf.placeholder(tf.int32, [self.batch_size, CONST_PIXELS_NUM, 1], name='idexes_x1')
+        self.albedo_indexes_y1 = tf.placeholder(tf.int32, [self.batch_size, CONST_PIXELS_NUM, 1], name='idexes_y1')
+
+        self.albedo_indexes_x2 = tf.placeholder(tf.int32, [self.batch_size, CONST_PIXELS_NUM, 1], name='idexes_x2')
+        self.albedo_indexes_y2 = tf.placeholder(tf.int32, [self.batch_size, CONST_PIXELS_NUM, 1], name='idexes_y2')
+
+        self.const_alb_mask = load_const_alb_mask()
+
+        def model_and_loss(input_images_fn_300W, input_masks_fn_300W, texture_labels_fn_300W, texture_masks_fn_300W, input_offset_height, input_offset_width, m_300W_labels, shape_300W_labels, albedo_indexes_x1, albedo_indexes_y1, albedo_indexes_x2, albedo_indexes_y2):
+            batch_size = self.batch_size / self.gpu_num
+            input_images_300W_   = filename2image(input_images_fn_300W, offset_height = input_offset_height, offset_width = input_offset_width, target_height=self.image_size, target_width=self.image_size)
+            input_images_300W    = input_images_300W_ /127.5 - 1
+
+            input_masks_300W    = filename2image(input_masks_fn_300W,  offset_height = input_offset_height, offset_width = input_offset_width, target_height=self.image_size, target_width=self.image_size)
+            input_masks_300W    = input_masks_300W / 255.0
+
+            texture_300W_labels    = filename2image(texture_labels_fn_300W)
+            texture_300W_labels    = texture_300W_labels / 127.5 - 1
+
+            texture_mask_300W_labels = filename2image(texture_masks_fn_300W)
+            texture_mask_300W_labels = texture_mask_300W_labels / 255.0
+
+
+            ## ------------------------- Network ---------------------------
+            shape_fx_300W, tex_fx_300W, m_300W, il_300W = self.generator_encoder( input_images_300W, is_reuse=False)
+            shape_300W, shape_2d_300W = self.generator_decoder_shape(shape_fx_300W, is_reuse=False, is_training=True)
+            albedo_300W = self.generator_decoder_albedo(tex_fx_300W, is_reuse=False, is_training=True)
+
+            m_300W_full = m_300W * self.std_m_tf + self.mean_m_tf
+            shape_300W_full = shape_300W * self.std_shape_tf + self.mean_shape_tf
+            shape_300W_labels_full = shape_300W_labels * self.std_shape_tf + self.mean_shape_tf
+            m_300W_labels_full = m_300W_labels * self.std_m_tf + self.mean_m_tf
+
+            shape_for_synthesize = shape_300W_full
+            m_for_synthesize = m_300W_full
+
+            # Rendering
+            shade_300W  = generate_shade(il_300W, m_for_synthesize, shape_for_synthesize, self.texture_size)
+            texture_300W = 2.0*tf.multiply( (albedo_300W + 1.0)/2.0, shade_300W) - 1
+
+
+            G_images_300W, G_images_300W_mask = warp_texture(texture_300W, m_for_synthesize, shape_for_synthesize, output_size=self.image_size)
+
+            G_images_300W_mask = tf.multiply(input_masks_300W, tf.expand_dims(G_images_300W_mask, -1))
+            G_images_300W = tf.multiply(G_images_300W, G_images_300W_mask) + tf.multiply(input_images_300W, 1 - G_images_300W_mask)
+
+            landmark_u_300W, landmark_v_300W = compute_landmarks(m_300W_full, shape_300W_full, output_size=self.image_size)
+            landmark_u_300W_labels, landmark_v_300W_labels = compute_landmarks(m_300W_labels_full, shape_300W_labels_full, output_size=self.image_size)
+
+
+            
+
+            ##---------------- Losses -------------------------
+            g_loss = tf.zeros(1)
+
+            G_loss_shape   = 10*norm_loss(shape_300W, shape_300W_labels, loss_type = self.shape_loss) #tf.zeros(1) 
+            G_loss_m       = 5*norm_loss(m_300W,        m_300W_labels,     loss_type = 'l2')
+
+
+            texture_vis_mask = tf.cast(tf.not_equal(texture_300W_labels, tf.ones_like(texture_300W_labels)*(-1)), tf.float32)
+            texture_vis_mask = tf.multiply(texture_vis_mask, texture_mask_300W_labels)
+            texture_ratio = tf.reduce_sum(texture_vis_mask)  / (batch_size* self.texture_size[0] * self.texture_size[1] * self.c_dim)
+
+            
+
+            if self.is_batchwise_white_shading:
+                uv_mask_tf = tf.expand_dims(tf.expand_dims(tf.constant( self.uv_mask, dtype = tf.float32 ), 0), -1)
+
+                mean_shade = tf.reduce_mean( tf.multiply(shade_300W, uv_mask_tf) , axis=[0,1,2]) * 16384 / 10379
+                G_loss_white_shading = 10*norm_loss(mean_shade,  0.99*tf.ones([1, 3], dtype=tf.float32), loss_type = "l2")
+            else:
+                G_loss_white_shading = tf.zeros(1)
+
+            
+
+            G_loss_texture = norm_loss(texture_300W,  texture_300W_labels, mask = texture_vis_mask, loss_type = self.tex_loss)  / texture_ratio
+
+            G_loss_recon  = 10*norm_loss(G_images_300W, input_images_300W, loss_type = self.tex_loss ) / (tf.reduce_sum(G_images_300W_mask)/ (batch_size* self.image_size  * self.image_size))
+
+            g_loss += G_loss_m + G_loss_shape + G_loss_white_shading
+
+            if self.is_smoothness:
+                G_loss_smoothness = 1000*norm_loss( (shape_2d_300W[:, :-2, 1:-1, :] + shape_2d_300W[:, 2:, 1:-1, :] + shape_2d_300W[:, 1:-1, :-2, :] + shape_2d_300W[:, 1:-1, 2:, :])/4.0,
+                                                    shape_2d_300W[:, 1:-1, 1:-1, :], loss_type = self.shape_loss)
+            else:
+                G_loss_smoothness = tf.zeros(1)
+            g_loss = g_loss + G_loss_smoothness
+
+            G_landmark_loss = (tf.reduce_mean(tf.nn.l2_loss(landmark_u_300W - landmark_u_300W_labels )) +  tf.reduce_mean(tf.nn.l2_loss(landmark_v_300W - landmark_v_300W_labels ))) / self.landmark_num / batch_size / 50
+
+            if self.is_using_symetry:
+                albedo_300W_flip = tf.map_fn(lambda img: tf.image.flip_left_right(img), albedo_300W)
+                G_loss_symetry = norm_loss(tf.maximum(tf.abs(albedo_300W-albedo_300W_flip), 0.05), 0, loss_type = self.tex_loss)
+            else:
+                G_loss_symetry = tf.zeros(1)
+            g_loss +=  G_loss_symetry
+
+            if self.is_const_albedo:
+
+                albedo_1 = get_pixel_value(albedo_300W, albedo_indexes_x1, albedo_indexes_y1)
+                albedo_2 = get_pixel_value(albedo_300W, albedo_indexes_x2, albedo_indexes_y2)
+
+                G_loss_albedo_const = 5*norm_loss( tf.maximum(tf.abs(albedo_1- albedo_2), 0.05), 0, loss_type = self.tex_loss)
+            else:
+                G_loss_albedo_const = tf.zeros(1)
+            g_loss += G_loss_albedo_const
+
+            if self.is_const_local_albedo:
+                local_albedo_alpha = 0.9
+                texture_300W_labels_chromaticity = (texture_300W_labels + 1.0)/2.0
+                texture_300W_labels_chromaticity = tf.divide(texture_300W_labels_chromaticity, tf.reduce_sum(texture_300W_labels_chromaticity, axis=[-1], keep_dims=True) + 1e-6)
+
                 
-        self.m_labels       = tf.placeholder(tf.float32, [self.batch_size, self.mDim], name='m_labels')
-        self.shape_labels   = tf.placeholder(tf.float32, [self.batch_size, self.vertexNum * 3], name='shape_labels')
-        self.texture_labels = tf.placeholder(tf.float32, [self.batch_size, self.texture_size[0], self.texture_size[1], self.c_dim], name='tex_labels')
-         
-        
-        self.input_images   = tf.placeholder(tf.float32, [self.batch_size, self.image_size, self.image_size, self.c_dim], name='input_images')
+                w_u = tf.stop_gradient(tf.exp(-15*tf.norm( texture_300W_labels_chromaticity[:, :-1, :, :] - texture_300W_labels_chromaticity[:, 1:, :, :], ord='euclidean', axis=-1, keep_dims=True)) * texture_vis_mask[:, :-1, :, :] )
+                G_loss_local_albedo_const_u = tf.reduce_mean(norm_loss( albedo_300W[:, :-1, :, :], albedo_300W[:, 1:, :, :], loss_type = 'l2,1', reduce_mean=False, p=0.8) * w_u) / tf.reduce_sum(w_u+1e-6)
 
-        self.shape_fx, self.tex_fx, self.m = self.generator_encoder( self.input_images, is_reuse=False)
-        self.shape = self.generator_decoder_shape(shape_fx, is_reuse=False, is_training=True)
-        self.texture = self.generator_decoder_texture(tex_fx, is_reuse=False, is_training=True)
+                    
+                w_v = tf.stop_gradient(tf.exp(-15*tf.norm( texture_300W_labels_chromaticity[:, :, :-1, :] - texture_300W_labels_chromaticity[:, :, 1:, :], ord='euclidean', axis=-1, keep_dims=True)) * texture_vis_mask[:, :, :-1, :] )
+                G_loss_local_albedo_const_v = tf.reduce_mean(norm_loss( albedo_300W[:, :, :-1, :], albedo_300W[:, :, 1:, :],  loss_type = 'l2,1', reduce_mean=False, p=0.8) * w_v) / tf.reduce_sum(w_v+1e-6)
 
-        # Here we estimate the whitenning projection matrix m and shape S
-        # In order to do rendering/ calculate landmark we convert it back using mean, std
-        self.m_full = self.m * self.std_m_tf + self.mean_m_tf
-        self.m_labels_full = self.m_labels * self.std_m_tf + self.mean_m_tf
-        self.shape_full = self.shape * self.std_shape_tf + self.mean_shape_tf
-        self.shape_labels_full = self.shape_labels * self.std_shape_tf + self.mean_shape_tf
-        
+                G_loss_local_albedo_const = (G_loss_local_albedo_const_u + G_loss_local_albedo_const_v)*10
+            else:
+                G_loss_local_albedo_const = tf.zeros(1)
+            g_loss += G_loss_local_albedo_const
 
-        # Rendering
-        self.G_images, self.G_images_mask = warp_texture(self.texture, self.m_full, self.shape_full, output_size=self.image_size)
+            if self.is_using_recon:
+                g_loss +=  G_loss_recon
+            else:
+                g_loss += G_loss_texture
 
-        self.G_images_mask = tf.expand_dims(self.G_images_mask, -1)
-        self.G_images = tf.multiply(self.G_images, self.G_images_mask) + tf.multiply(self.input_images, 1 - self.G_images_mask)
+            G_loss_frecon = tf.zeros(1)
+            
 
-        self.landmark_u, self.landmark_v = compute_landmarks(self.m_full, self.shape_full, output_size=self.image_size)
+            if self.is_using_landmark:
+                g_loss_wlandmark = g_loss + G_landmark_loss
+            else:
+                g_loss_wlandmark = g_loss
 
-        
+
+            return g_loss, g_loss_wlandmark, G_loss_m, G_loss_shape, G_loss_texture, G_loss_recon, G_loss_frecon, G_landmark_loss, G_loss_symetry, G_loss_white_shading, G_loss_albedo_const, G_loss_smoothness, G_loss_local_albedo_const, \
+                   G_images_300W, texture_300W, albedo_300W, shade_300W, texture_300W_labels, input_images_300W
+
+        g_loss, g_loss_wlandmark, G_loss_m, G_loss_shape, G_loss_texture, G_loss_recon, G_loss_frecon, G_landmark_loss, G_loss_symetry, G_loss_white_shading, G_loss_albedo_const, G_loss_smoothness, G_loss_local_albedo_const, \
+            G_images_300W, texture_300W, albedo_300W, shade_300W, texture_300W_labels, input_images_300W \
+            = make_parallel(model_and_loss, self.gpu_num, 
+                            input_images_fn_300W= self.input_images_fn_300W, input_masks_fn_300W=self.input_masks_fn_300W,
+                            texture_labels_fn_300W=self.texture_labels_fn_300W, texture_masks_fn_300W=self.texture_masks_fn_300W,
+                            input_offset_height=self.input_offset_height, input_offset_width=self.input_offset_width,
+                            m_300W_labels = self.m_300W_labels, shape_300W_labels=self.shape_300W_labels, 
+                            albedo_indexes_x1= self.albedo_indexes_x1, albedo_indexes_y1 = self.albedo_indexes_y1,
+                            albedo_indexes_x2=self.albedo_indexes_x2, albedo_indexes_y2 = self.albedo_indexes_y2)
+
+        self.G_loss = tf.reduce_mean(g_loss)
+        self.G_loss_wlandmark = tf.reduce_mean(g_loss_wlandmark)
+        self.G_loss_m = tf.reduce_mean(G_loss_m)
+        self.G_loss_shape =  tf.reduce_mean(G_loss_shape)
+        self.G_loss_texture =  tf.reduce_mean(G_loss_texture)
+        self.G_loss_recon =  tf.reduce_mean(G_loss_recon)
+        self.G_loss_frecon =  tf.reduce_mean(G_loss_frecon)
+        self.G_landmark_loss =  tf.reduce_mean(G_landmark_loss)
+        self.G_loss_symetry =  tf.reduce_mean(G_loss_symetry)
+        self.G_loss_white_shading =  tf.reduce_mean(G_loss_white_shading)
+        self.G_loss_albedo_const =  tf.reduce_mean(G_loss_albedo_const)
+        self.G_loss_local_albedo_const =  tf.reduce_mean(G_loss_local_albedo_const)
+        self.G_loss_smoothness =  tf.reduce_mean(G_loss_smoothness)
+
+        self.G_images_300W = tf.clip_by_value(tf.concat(G_images_300W, axis=0), -1, 1)
+        self.texture_300W = tf.clip_by_value(tf.concat(texture_300W, axis=0), -1, 1)
+        self.albedo_300W = tf.concat(albedo_300W, axis=0)
+        self.shade_300W = tf.concat(shade_300W, axis=0)
+        self.texture_300W_labels = tf.concat(texture_300W_labels, axis=0)
+        self.input_images_300W = tf.concat(input_images_300W, axis=0)
+
+
        
         t_vars = tf.trainable_variables()
         self.d_vars = [var for var in t_vars if 'd_' in var.name]
@@ -111,41 +301,46 @@ class DCGAN(object):
         self.g_tex_de_vars = [var for var in t_vars if 'g_h' in var.name]
         self.g_shape_de_vars = [var for var in t_vars if 'g_s' in var.name]
 
-        #self.saver = tf.train.Saver(keep_checkpoint_every_n_hours=1, max_to_keep = 10)
-
-    def setupLossFunctions(self):
-        # Losses
-        self.texture_vis_mask = tf.cast(tf.not_equal(self.texture_labels, tf.ones_like(self.texture_labels)*(-1)), tf.float32)
-        self.texture_ratio = tf.reduce_sum(self.texture_vis_mask)  / (self.batch_size* self.texture_size[0] * self.texture_size[1] * self.c_dim)
-        self.img_ratio     = tf.reduce_sum(self.G_images_mask)/ (self.batch_size* self.output_size  * self.output_size)
-
-
-        # Pretrain only losses
-        self.G_loss_m = norm_loss(self.m, self.m_labels,     loss_type = 'l2')
-        self.G_loss_shape   = norm_loss(self.shape, self.shape_labels, loss_type = self.shape_loss)
-        self.G_loss_texture = norm_loss(self.texture, self.texture_labels, mask = texture_vis_mask, loss_type = self.tex_loss)  / texture_ratio
-
-        self.G_loss_rescon  = 10*norm_loss(G_images, input_images, loss_type = self.tex_loss ) / img_ratio
-        self.G_landmark_loss = (tf.reduce_mean(tf.nn.l2_loss(landmark_u - landmark_u_labels )) +  tf.reduce_mean(tf.nn.l2_loss(landmark_v - landmark_v_labels ))) / self.landmark_num / self.batch_size / 80
-        
-        if self.is_pretrain:
-            self.G_loss = self.G_loss_m + self.G_loss_shape + self.G_loss_texture
-        else:
-            self.G_loss = self.G_loss_rescon + self.G_landmark_loss #+ self.G_loss_adversarial
-
-        self.G_loss_wlandmark = self.G_loss + self.G_landmark_loss
-
+        self.saver = tf.train.Saver(keep_checkpoint_every_n_hours=1, max_to_keep = 10)
     
-    def setupParaStat(self):
 
-        ## Compute mean, std of m and shape of the training set 
-        ## to whiten the data
+    def setupParaStat(self):
+        self.tri = load_3DMM_tri()
+        self.vertex_tri = load_3DMM_vertex_tri()
+        self.vt2pixel_u, self.vt2pixel_v = load_3DMM_vt2pixel()
+        self.uv_tri, self.uv_mask = load_3DMM_tri_2d(with_mask = True)
+
+        
+        
+
+
+        # Basis
+        mu_shape, w_shape = load_Basel_basic('shape')
+        mu_exp, w_exp = load_Basel_basic('exp')
+
+        self.mean_shape = mu_shape + mu_exp
+        self.std_shape = np.tile(np.array([1e4, 1e4, 1e4]), self.vertexNum)
+        #self.std_shape  = np.load('std_shape.npy')
 
         self.mean_shape_tf = tf.constant(self.mean_shape, tf.float32)
         self.std_shape_tf = tf.constant(self.std_shape, tf.float32)
 
+        self.mean_m = np.load('mean_m.npy')
+        self.std_m = np.load('std_m.npy')
+
         self.mean_m_tf = tf.constant(self.mean_m, tf.float32)
         self.std_m_tf = tf.constant(self.std_m, tf.float32)
+        
+        self.w_shape = w_shape
+        self.w_exp = w_exp
+
+        
+
+    def m2full(self, m):
+        return m * self.std_m_tf + self.mean_m_tf
+
+    def shape2full(self, shape):
+        return shape * self.std_shape_tf + self.mean_shape_tf
         
 
 
@@ -202,6 +397,18 @@ class DCGAN(object):
 
 
     def train(self, config):
+
+         # Training data
+        self.setupTrainingData()
+
+        valid_idx = range(self.images_300W.shape[0])
+        print("Valid images %d/%d" % ( len(valid_300W_idx), self.images_300W.shape[0] ))
+
+
+
+        np.random.shuffle(valid_idx)
+
+
         # Using 2 separated optim for with and withou landmark losses
         g_optim = tf.train.AdamOptimizer(config.learning_rate, beta1=config.beta1).minimize(self.G_loss, var_list=self.g_vars, colocate_gradients_with_ops=True)
         g_en_optim = tf.train.AdamOptimizer(config.learning_rate, beta1=config.beta1).minimize(self.G_loss_wlandmark, var_list=self.g_en_vars, colocate_gradients_with_ops=True)
@@ -224,17 +431,51 @@ class DCGAN(object):
         for epoch in xrange(epoch0, config.epoch):
             
             batch_idxs = min(len(valid_idx), config.train_size) // config.batch_size
-            
+
             for idx in xrange(0, batch_idxs):
                 '''
                 Data processing. Create feed_dict
-                .
-                .
-                .
-                .
-                .
-
                 '''
+
+                # 300W
+                batch_idx = valid_idx[idx*config.batch_size:(idx+1)*config.batch_size]
+                
+                
+                tx = np.random.random_integers(0, 32, size=config.batch_size)
+                ty = np.random.random_integers(0, 32, size=config.batch_size)
+
+                batch_300W_images_fn = [self.image_filenames[batch_idx[i]] for i in range(config.batch_size)] 
+
+
+
+                delta_m      = np.zeros([config.batch_size, 8])
+                delta_m[:,6] = np.divide(ty, self.std_m[6])
+                delta_m[:,7] = np.divide(32 - tx, self.std_m[7])
+
+                
+                batch_m      = self.all_m[batch_idx,:] - delta_m
+
+                batch_shape_para = self.all_shape_para[batch_idx,:]
+                batch_exp_para   = self.all_exp_para[batch_idx,:]
+
+                batch_shape  = np.divide( np.matmul(batch_shape_para, np.transpose(self.w_shape)) + np.matmul(batch_exp_para, np.transpose(self.w_exp)), self.std_shape)
+
+                ffeed_dict={ self.m_300W_labels: batch_m, self.shape_300W_labels: batch_shape, self.input_offset_height: tx, self.input_offset_width: ty}
+                for i in range(self.batch_size):
+                    ffeed_dict[self.input_images_fn_300W[i]] = _300W_LP_DIR + 'image/'+ batch_300W_images_fn[i]
+                    ffeed_dict[self.input_masks_fn_300W[i]] = _300W_LP_DIR + 'mask_img/'+ batch_300W_images_fn[i]
+                    ffeed_dict[self.texture_labels_fn_300W[i]] = _300W_LP_DIR + 'texture/'+ image2texture_fn(batch_300W_images_fn[i])
+                    ffeed_dict[self.texture_masks_fn_300W[i]] = _300W_LP_DIR + 'mask/'+ image2texture_fn(batch_300W_images_fn[i])
+
+                if self.is_const_albedo:
+                    indexes1 = np.random.randint(low=0, high=self.const_alb_mask.shape[0], size=[self.batch_size* CONST_PIXELS_NUM])
+                    indexes2 = np.random.randint(low=0, high=self.const_alb_mask.shape[0], size=[self.batch_size* CONST_PIXELS_NUM])
+
+
+                    ffeed_dict[self.albedo_indexes_x1] = np.reshape(self.const_alb_mask[indexes1, 1], [self.batch_size, CONST_PIXELS_NUM, 1])
+                    ffeed_dict[self.albedo_indexes_y1] = np.reshape(self.const_alb_mask[indexes1, 0], [self.batch_size, CONST_PIXELS_NUM, 1])
+                    ffeed_dict[self.albedo_indexes_x2] = np.reshape(self.const_alb_mask[indexes2, 1], [self.batch_size, CONST_PIXELS_NUM, 1])
+                    ffeed_dict[self.albedo_indexes_y2] = np.reshape(self.const_alb_mask[indexes2, 0], [self.batch_size, CONST_PIXELS_NUM, 1])
                 
 
                 if np.mod(idx, 2) == 0:
@@ -350,10 +591,11 @@ class DCGAN(object):
             vt2pixel_u_const = tf.constant(vt2pixel_u[:-1], tf.float32)
             vt2pixel_v_const = tf.constant(vt2pixel_v[:-1], tf.float32)
 
-            if self.is_partbase_albedo:
-                shape_2d = self.generator_decoder_shape_2d_partbase(k52_shape, is_reuse, is_training)
-            else:
-                shape_2d = self.generator_decoder_shape_2d_v1(k52_shape, is_reuse, is_training) 
+            #if self.is_partbase_albedo:
+            #    shape_2d = self.generator_decoder_shape_2d_partbase(k52_shape, is_reuse, is_training)
+            #else:
+            #    shape_2d = self.generator_decoder_shape_2d_v1(k52_shape, is_reuse, is_training) 
+            shape_2d = self.generator_decoder_shape_2d(k52_shape, is_reuse, is_training) 
 
             vt2pixel_v_const_ = tf.tile(tf.reshape(vt2pixel_v_const, shape =[1,1,-1]), [n_size, 1,1])
             vt2pixel_u_const_ = tf.tile(tf.reshape(vt2pixel_u_const, shape =[1,1,-1]), [n_size, 1,1])
@@ -399,7 +641,7 @@ class DCGAN(object):
         s32_w= int(s_w/32)
                     
         # project `z` and reshape
-        h5 = linear(k52_tex, self.gfc_dim*s32_h*s32_w, scope= 'g_s5_lin', reuse = is_reuse)
+        h5 = linear(shape_fx, self.gfc_dim*s32_h*s32_w, scope= 'g_s5_lin', reuse = is_reuse)
         h5 = tf.reshape(h5, [-1, s32_h, s32_w, self.gfc_dim])
         h5 = elu(self.g2_bn5(h5, train=is_training, reuse = is_reuse))
         
@@ -472,7 +714,7 @@ class DCGAN(object):
         df = int(self.gf_dim)
                     
         # project `z` and reshape
-        h5 = linear(k52_tex, df*10*s32_h*s32_w, scope= 'g_h5_lin', reuse = is_reuse)
+        h5 = linear(tex_fx, df*10*s32_h*s32_w, scope= 'g_h5_lin', reuse = is_reuse)
         h5 = tf.reshape(h5, [-1, s32_h, s32_w, df*10])
         h5 = elu(self.g1_bn5(h5, train=is_training, reuse = is_reuse))
         

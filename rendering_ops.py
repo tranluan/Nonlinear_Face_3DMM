@@ -479,6 +479,188 @@ def bilinear_sampler(img, x, y):
     out = tf.add_n([wa*Ia, wb*Ib, wc*Ic, wd*Id])
     return out
 
+
+def generate_shade(il, m, mshape, texture_size = [192, 224], is_with_normal=False):
+    '''
+    print("get_shape(il) ")
+    print(get_shape(il) )
+    print("get_shape(m) ")
+    print(get_shape(m) )
+    print("get_shape(mshape) ")
+    print(get_shape(mshape) )
+    '''
+
+    n_size = get_shape(il)       
+    n_size = n_size[0]
+
+    # Tri, tri2vt
+    tri = load_3DMM_tri()
+    vertex_tri = load_3DMM_vertex_tri()
+    vt2pixel_u, vt2pixel_v = load_3DMM_vt2pixel()
+    tri_2d = load_3DMM_tri_2d()
+    tri_2d_barycoord = load_3DMM_tri_2d_barycoord()
+    
+        
+    
+    tri_const = tf.constant(tri, tf.int32)
+    vertex_tri_const = tf.constant(vertex_tri, tf.int32)
+
+    
+    tri_2d_const = tf.constant(tri_2d, tf.int32)
+    tri_2d_const_flat = tf.reshape(tri_2d_const, shape=[-1,1])
+
+    tri2vt1_const = tf.constant(tri[0,:], tf.int32)
+    tri2vt2_const = tf.constant(tri[1,:], tf.int32)
+    tri2vt3_const = tf.constant(tri[2,:], tf.int32)
+
+    vt1 = tf.gather( tri2vt1_const,  tri_2d_const_flat ) 
+    vt2 = tf.gather( tri2vt2_const,  tri_2d_const_flat ) 
+    vt3 = tf.gather( tri2vt3_const,  tri_2d_const_flat )
+
+    vt1_coeff = tf.reshape(tf.constant(tri_2d_barycoord[:,:,0], tf.float32), shape=[-1,1])
+    vt2_coeff = tf.reshape(tf.constant(tri_2d_barycoord[:,:,1], tf.float32), shape=[-1,1])
+    vt3_coeff = tf.reshape(tf.constant(tri_2d_barycoord[:,:,2], tf.float32), shape=[-1,1])
+
+
+
+    #mshape = mshape * tf.constant(self.std_shape) + tf.constant(self.mean_shape)
+
+    m_single     = tf.split(axis = 0, num_or_size_splits = n_size, value = m)
+    shape_single = tf.split(axis = 0, num_or_size_splits = n_size, value = mshape)
+
+    #def get_normal_flat(shape_single):
+    #    vertex3d_rs = tf.transpose(tf.reshape( shape_single, shape = [-1, 3] ))
+    #    normal, normalf = compute_normal(vertex3d_rs, tri_const, vertex_tri_const)
+    #    normalf_flat = tf.gather_nd(normalf, tri_2d_const_flat)
+    #    normalf_flats.append(normalf_flat)
+
+  
+    #normalf_flats = tf.map_fn( lambda ss: get_normal_flat(ss), shape_single  )
+    
+    normalf_flats = []
+    for i in range(n_size):
+        m_i = tf.transpose(tf.reshape(m_single[i], [4,2]))
+        
+        m_i_row1 = tf.nn.l2_normalize(m_i[0,0:3], dim = 0)
+        m_i_row2 = tf.nn.l2_normalize(m_i[1,0:3], dim = 0)
+        m_i_row3 = tf.cross(m_i_row1, m_i_row2)
+        m_i = tf.concat([ tf.expand_dims(m_i_row1, 0), tf.expand_dims(m_i_row2, 0), tf.expand_dims(m_i_row3, 0)], axis = 0)
+
+
+
+
+        '''
+        m_i_row1 = tf.nn.l2_normalize(m_i[0,0:3], dim = 0)
+        m_i_row2 = tf.nn.l2_normalize(m_i[1,0:3], dim = 0)
+        m_i_row3 = tf.concat([tf.reshape(tf.cross(m_i_row1, m_i_row2), shape = [1, 3]), tf.zeros([1, 1])], axis = 1)
+                  
+        m_i = tf.concat([m_i, m_i_row3], axis = 0)
+        print('m_i.shape()')
+        print(m_i.get_shape())
+        '''
+
+        vertex3d_rs = tf.transpose(tf.reshape( shape_single[i], shape = [-1, 3] ))
+
+        normal, normalf = _DEPRECATED_compute_normal(vertex3d_rs, tri_const, vertex_tri_const)
+
+
+        ###
+        '''
+        normalf = tf.transpose(normalf)
+        rotated_normalf = tf.matmul(m_i, normalf, False, False)
+        rotated_normalf = tf.transpose(rotated_normalf)
+
+        normalf_flat = tf.gather_nd(rotated_normalf, tri_2d_const_flat) 
+        normalf_flats.append(normalf_flat)
+        '''
+
+
+
+
+        ###
+        normal = tf.transpose(normal)
+        rotated_normal = tf.matmul(m_i, normal, False, False)
+        rotated_normal = tf.transpose(rotated_normal)
+        normal_flat_vt1 = tf.gather_nd(rotated_normal, vt1)
+        normal_flat_vt2 = tf.gather_nd(rotated_normal, vt2)
+        normal_flat_vt3 = tf.gather_nd(rotated_normal, vt3)
+        
+        normalf_flat = normal_flat_vt1*vt1_coeff + normal_flat_vt2*vt2_coeff + normal_flat_vt3*vt3_coeff
+        normalf_flats.append(normalf_flat)
+
+
+
+
+    normalf_flats = tf.stack(normalf_flats)
+    
+    #print("normalf_flats.get_shape()")
+    #print(normalf_flats.get_shape())
+
+    #print("il.get_shape()")
+    #print(il.get_shape())
+
+    shade = shading(il, normalf_flats)
+
+    #print("shade.get_shape()")
+    #print(shade.get_shape())
+
+    if is_with_normal:
+        return tf.reshape(shade, shape = [-1, texture_size[0], texture_size[1], 3]), tf.reshape(normalf_flats, shape = [-1, texture_size[0], texture_size[1], 3]), 
+
+
+
+    return tf.reshape(shade, shape = [-1, texture_size[0], texture_size[1], 3])
+
+
+
+def shading(L, normal):
+
+    
+    shape = normal.get_shape().as_list()
+    
+    normal_x, normal_y, normal_z = tf.split(tf.expand_dims(normal, -1), axis=2, num_or_size_splits=3)
+    pi = math.pi
+
+    sh=[0]*9
+    sh[0] = 1/math.sqrt(4*pi) * tf.ones_like(normal_x)
+    sh[1] = ((2*pi)/3)*(math.sqrt(3/(4*pi)))* normal_z
+    sh[2] = ((2*pi)/3)*(math.sqrt(3/(4*pi)))* normal_y
+    sh[3] = ((2*pi)/3)*(math.sqrt(3/(4*pi)))* normal_x
+    sh[4] = (pi/4)*(1/2)*(math.sqrt(5/(4*pi)))*(2*tf.square(normal_z)-tf.square(normal_x)-tf.square(normal_y))
+    sh[5] = (pi/4)*(3)  *(math.sqrt(5/(12*pi)))*(normal_y*normal_z)
+    sh[6] = (pi/4)*(3)  *(math.sqrt(5/(12*pi)))*(normal_x*normal_z)
+    sh[7] = (pi/4)*(3)  *(math.sqrt(5/(12*pi)))*(normal_x*normal_y)
+    sh[8] = (pi/4)*(3/2)*(math.sqrt(5/(12*pi)))*( tf.square(normal_x)-tf.square(normal_y))
+
+    sh = tf.concat(sh, axis=3)
+    print('sh.get_shape()')
+    print(sh.get_shape())
+
+    L1, L2, L3 = tf.split(L, num_or_size_splits = 3, axis=1)
+    L1 = tf.expand_dims(L1, 1)
+    L1 = tf.tile(L1, multiples=[1, shape[1], 1] )
+    L1 = tf.expand_dims(L1, -1)
+
+    L2 = tf.expand_dims(L2, 1)
+    L2 = tf.tile(L2, multiples=[1, shape[1], 1] )
+    L2 = tf.expand_dims(L2, -1)
+
+    L3 = tf.expand_dims(L3, 1)
+    L3 = tf.tile(L3, multiples=[1, shape[1], 1] )
+    L3 = tf.expand_dims(L3, -1)
+
+    print('L1.get_shape()')
+    print(L1.get_shape())
+
+    B1 = tf.matmul(sh, L1)
+    B2 = tf.matmul(sh, L2)
+    B3 = tf.matmul(sh, L3)
+
+    B = tf.squeeze(tf.concat([B1, B2, B3], axis = 2))
+
+    return B
+
+
 ## _DEPRECATED_
 
 def _DEPRECATED_warp_texture(texture, m, mshape, output_size=224):

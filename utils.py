@@ -13,8 +13,7 @@ from glob import glob
 import os
 #import matplotlib.pyplot as plt
 from time import gmtime, strftime
-#from config import FACE_ALIGNMENT_RECROP_DIR, DATA_DIR
-
+from config import _300W_LP_DIR
 
 pp = pprint.PrettyPrinter()
 

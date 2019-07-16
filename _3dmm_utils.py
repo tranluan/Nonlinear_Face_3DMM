@@ -10,6 +10,8 @@ from config import _3DMM_DEFINITION_DIR
 
 VERTEX_NUM = 53215
 TRI_NUM = 105840
+N = VERTEX_NUM * 3
+
 
 def load_3DMM_tri():
     # Triangle definition (i.e. from Basel model)
@@ -88,3 +90,41 @@ def load_3DMM_tri_2d(with_mask = False):
         return tri_2d, tri_mask
 
     return tri_2d
+
+def load_Basel_basic(element, is_reduce = False):
+    fn = _3DMM_DEFINITION_DIR + '3DMM_'+element+'_basis.dat'
+    print 'Loading ' + fn + ' ...'
+
+
+   
+    fd = open(fn)
+    all_paras = np.fromfile(file=fd, dtype=np.float32)
+    fd.close()
+ 
+    all_paras = np.transpose(all_paras.reshape((-1,N)).astype(np.float32))
+ 
+    mu = all_paras[:,0]
+    w  = all_paras[:,1:]
+
+    print '    DONE'
+
+    return mu, w
+
+def load_const_alb_mask():
+    fd = open(_3DMM_DEFINITION_DIR + '3DMM_const_alb_mask.dat')
+    const_alb_mask = np.fromfile(file=fd, dtype=np.uint8)
+    fd.close()
+    const_alb_mask = const_alb_mask - 1
+    const_alb_mask = const_alb_mask.reshape((-1,2)).astype(np.uint8)
+
+    return const_alb_mask
+
+def load_3DMM_tri_2d_barycoord():
+    fd = open(_3DMM_DEFINITION_DIR + '3DMM_tri_2d_barycoord.dat')
+    tri_2d_barycoord = np.fromfile(file=fd, dtype=np.float32)
+    fd.close()
+
+    tri_2d_barycoord = tri_2d_barycoord.reshape(192, 224, 3)
+    
+
+    return tri_2d_barycoord
