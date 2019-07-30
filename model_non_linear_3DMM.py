@@ -401,8 +401,8 @@ class DCGAN(object):
          # Training data
         self.setupTrainingData()
 
-        valid_idx = range(self.images_300W.shape[0])
-        print("Valid images %d/%d" % ( len(valid_300W_idx), self.images_300W.shape[0] ))
+        valid_idx = range(self.image_filenames.shape[0])
+        print("Valid images %d/%d" % ( len(valid_idx), self.image_filenames.shape[0] ))
 
 
 
