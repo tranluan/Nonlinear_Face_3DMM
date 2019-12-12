@@ -295,3 +295,10 @@ def load_300W_LP_dataset(dataset):
     assert (len(all_images) == all_paras.shape[0]),"Number of samples must be the same between images and paras"
 
     return all_images, pid, m, pose, shape, exp, tex, il
+
+def image2texture_fn(image_fn):
+    last = image_fn[-7:].find('_')
+    if (last < 0):
+        return image_fn
+    else:
+        return image_fn[:-7 + last] + '_0.png'
