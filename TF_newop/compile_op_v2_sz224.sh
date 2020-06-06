@@ -1,3 +1,5 @@
+## Note: for Anaconda user, please use -D_GLIBCXX_USE_CXX11_ABI=1 (instead of -D_GLIBCXX_USE_CXX11_ABI=0)
+
 ## ----------- Test with TF v1.8
 
 TF_CFLAGS=( $(python -c 'import tensorflow as tf; print(" ".join(tf.sysconfig.get_compile_flags()))') )
