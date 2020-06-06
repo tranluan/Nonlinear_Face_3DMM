@@ -35,15 +35,30 @@ also the image size is hard-coded. Any contribution is welcome!
 
 ## Run the code
 
+Note: In recent TF version, set --is_<some_thing> False (i.e --is_using_recon False) doesn't actually set it to False. In this case, you can just don't set it and use the default False value. Please print out those flags value to make sure.
+
 Pretraining
 
 ```bash
+python main_non_linear_3DMM.py --batch_size 128 --sample_size 128 --is_train True --learning_rate 0.001 --ouput_size  224 \
+   --gf_dim 32 --df_dim 32 --dfc_dim 320 --gfc_dim 320 --z_dim 20 --c_dim 3 \
+   --is_using_landmark True  --shape_loss l2 --tex_loss l1 \
+   --is_using_recon False --is_using_frecon False --is_partbase_albedo False --is_using_symetry True  \
+   --is_albedo_supervision False --is_batchwise_white_shading True --is_const_albedo True --is_const_local_albedo False --is_smoothness True 
+  --gpu 0,1,2,3
 ```
 
 
 Finetunning
+Manually reduce the m_loss, shape_loss weight by 10 times
 
 ```bash
+python main_non_linear_3DMM.py --batch_size 64 --sample_size 64 --is_train True --learning_rate 0.001 --ouput_size  224 \
+   --gf_dim 32 --df_dim 32 --dfc_dim 320 --gfc_dim 320 --z_dim 20 --c_dim 3 \
+   --is_using_landmark True  --shape_loss l2 --tex_loss l1 \
+   --is_using_recon True --is_using_frecon True --is_partbase_albedo False --is_using_symetry True  \
+   --is_albedo_supervision False --is_batchwise_white_shading True --is_const_albedo True --is_const_local_albedo True --is_smoothness True 
+  --gpu 0,1,2,3 \
 ```
 
 
