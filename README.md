@@ -61,6 +61,10 @@ python main_non_linear_3DMM.py --batch_size 64 --sample_size 64 --is_train True 
   --gpu 0,1,2,3 \
 ```
 
+## Pretrain model
+
+This is the [pretrained model](https://www.cse.msu.edu/computervision/evaluation_code.zip) of CVPR'19 paper. Input images are 256 x 256.
+
 
 ## Citation
 
