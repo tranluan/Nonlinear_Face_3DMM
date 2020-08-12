@@ -22,6 +22,8 @@ Download following 3DMM definition and unzip into current folder (./)
 [3DMM_definition.zip](https://drive.google.com/open?id=1-UJdQeFw0cf9u9gUHokNoheH0z3L1fEH)
 
 ## Compile the rendering layer - CUDA code
+Please edit TF_newop/compile_op_v2_sz224.sh based on your TF version and whether you install TF with Anaconda (instruction in the file)
+
 ```bash
 $ # Compile
 $ cd TF_newop/
